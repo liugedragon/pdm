@@ -58,7 +58,7 @@ class PyLock(Lockfile):
     def format_lockfile(self, repository: LockedRepository, groups: Iterable[str] | None, strategy: set[str]) -> None:
         from pdm.formats.pylock import PyLockConverter
 
-        converter = PyLockConverter(repository.environment.project, repository)
+        converter = PyLockConverter(repository.environment.project, repository, output_path=self._path)
         data = converter.convert(groups)
         data["tool"]["pdm"]["strategy"] = sorted(strategy)
         if repository.environment.project.lock_inputs_enabled():

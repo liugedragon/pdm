@@ -109,7 +109,7 @@ class LockedRepository(BaseRepository):
 
     def _read_pylock(self, lockfile: Mapping[str, Any]) -> None:
         root = self.environment.project.root
-        lockfile_root = self.environment.project.lockfile._path.absolute().parent
+        lockfile_root = self.environment.project.lockfile._path.absolute().parent.resolve()
 
         if "targets" in lockfile.get("tool", {}).get("pdm", {}):
             self.targets = [EnvSpec.from_spec(**t) for t in lockfile["tool"]["pdm"]["targets"]]
@@ -136,12 +136,14 @@ class LockedRepository(BaseRepository):
                     req_dict["revision"] = vcs.get("commit-id")
                     req_dict["subdirectory"] = vcs.get("subdirectory")
                 elif directory := package.get("directory"):  # pragma: no cover
-                    req_dict["path"] = directory["path"]
+                    req_dict["path"] = str(lockfile_root / directory["path"])
                     req_dict["editable"] = directory.get("editable", False)
                     req_dict["subdirectory"] = directory.get("subdirectory")
                 elif archive := package.get("archive"):  # pragma: no cover
-                    req_dict["url"] = archive.get("url")
-                    req_dict["path"] = archive.get("path")
+                    if "path" in archive:
+                        req_dict["path"] = str(lockfile_root / archive["path"])
+                    else:
+                        req_dict["url"] = archive.get("url")
                     req_dict["subdirectory"] = archive.get("subdirectory")
                 req = Requirement.from_req_dict(package_name, req_dict)
                 if req.is_file_or_url and req.path and not req.url:  # type: ignore[attr-defined]

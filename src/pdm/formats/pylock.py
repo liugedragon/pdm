@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import tomlkit
@@ -26,9 +28,27 @@ def _group_sort_key(group: str) -> tuple[bool, str]:
 class PyLockConverter:
     lock_version = "1.0"
 
-    def __init__(self, project: Project, locked_repository: LockedRepository) -> None:
+    def __init__(
+        self, project: Project, locked_repository: LockedRepository, *, output_path: Path | None = None
+    ) -> None:
         self.project = project
         self.locked_repository = locked_repository
+        self.output_dir = output_path.absolute().parent.resolve() if output_path is not None else project.root.resolve()
+
+    def _local_path(self, req: FileRequirement) -> str | None:
+        path = req.str_path
+        if path is None or Path(path).is_absolute():
+            return path
+        absolute_path = req.absolute_path
+        assert absolute_path is not None
+        try:
+            relative = Path(os.path.relpath(absolute_path, self.output_dir)).as_posix()
+        except ValueError:
+            # Paths on different Windows drives cannot be relative to one another.
+            return absolute_path.absolute().as_posix()
+        if relative != "." and not relative.startswith(("./", "../")):
+            relative = "./" + relative
+        return relative
 
     def make_package(self, package: Package) -> dict[str, Any]:
         req = package.candidate.req
@@ -51,7 +71,7 @@ class PyLockConverter:
         elif isinstance(req, FileRequirement):
             if req.is_local_dir:
                 result["directory"] = {
-                    "path": req.str_path,
+                    "path": self._local_path(req),
                     "editable": req.editable,
                 }
                 if req.subdirectory:
@@ -60,7 +80,7 @@ class PyLockConverter:
                 archive: dict[str, Any]
                 archive = result["archive"] = {"url": req.get_full_url()}
                 if req.path:
-                    archive["path"] = req.str_path
+                    archive["path"] = self._local_path(req)
                 if req.subdirectory:
                     archive["subdirectory"] = req.subdirectory
                 for hash_item in candidate.hashes:

@@ -78,7 +78,10 @@ class Command(BaseCommand):
                     Package(project.make_self_candidate(editable=options.editable_self), [], "")
                 )
             selected_groups = None if selection.is_unset else list(selection)
-            doc = tomlkit.dumps(PyLockConverter(project, locked_repository).convert(selected_groups=selected_groups))
+            converter = PyLockConverter(
+                project, locked_repository, output_path=Path(options.output) if options.output else None
+            )
+            doc = tomlkit.dumps(converter.convert(selected_groups=selected_groups))
             if options.output:
                 Path(options.output).write_text(doc, encoding="utf-8")
             else:
